@@ -9,20 +9,13 @@ import Typography from '@material-ui/core/Typography';
 import Grid from '@material-ui/core/Grid';
 import Paper from '@material-ui/core/Paper';
 
-import List from '@material-ui/core/List';
-import ListItem from '@material-ui/core/ListItem';
-import ListItemIcon from '@material-ui/core/ListItemIcon';
-import ListItemText from '@material-ui/core/ListItemText';
-import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
-
 import Divider from '@material-ui/core/Divider';
 
-import Button from '@material-ui/core/Button';
-import IconButton from '@material-ui/core/IconButton';
-import SaveIcon from '@material-ui/icons/Save';
-import DeleteIcon from '@material-ui/icons/Delete';
-
-import TextField from '@material-ui/core/TextField';
+import AddTodoForm from './components/AddTodoForm';
+import TodoList from './components/TodoList';
+import TodoDetails from './components/TodoDetails';
+import EditTodoForm from './components/EditTodoForm';
+import { findLocalNegativePatterns } from 'fast-glob/out/managers/tasks';
 
 const styles = {
 	root: {
@@ -44,13 +37,10 @@ class App extends Component {
 		super();
 
 		this.state = {
-			todos: [
-				{ title: 'Cosa da fare 1', description: 'descrizione cosa da fare 1' },
-				{ title: 'Cosa da fare 2', description: 'descrizione cosa da fare 2' },
-				{ title: 'Cosa da fare 3', description: 'descrizione cosa da fare 3' }
-			],
+			todos: [],
 			selectedIdx: -1,
-			adding: false
+			adding: false,
+			editing: false
 		};
 	}
 
@@ -60,10 +50,7 @@ class App extends Component {
 			todos: [ ...this.state.todos ],
 			selectedIdx: i,
 			adding: this.state.adding,
-			form: {
-				title: '',
-				description: ''
-			}
+			editing: this.state.editing
 		});
 	}
 	newTodoOnClick(e) {
@@ -71,23 +58,32 @@ class App extends Component {
 			todos: [ ...this.state.todos ],
 			selectedIdx: this.state.selectedIdx,
 			adding: true,
-			form: {
-				title: '',
-				description: ''
-			}
+			editing: false
 		});
 	}
 
-	newTodoSave(e) {
-		console.log('SAVE', this.state.form);
+	newTodoSave(e, data) {
+		console.log('SAVE', data);
 		this.setState({
-			todos: [ ...this.state.todos, this.state.form ],
+			todos: [ ...this.state.todos, data ],
 			selectedIdx: this.state.selectedIdx,
 			adding: false,
-			form: {
-				title: '',
-				description: ''
-			}
+			editing: false
+		});
+		console.log('STATE = ', this.state);
+	}
+
+	TodoUpdate(e, data) {
+		const { id } = data;
+		const selectedIdx = this.state.todos.findIndex((elem) => elem.id === id);
+		let todos = this.state.todos.filter((todo) => todo.id !== id); // prendo quelli con ID diverso
+
+		todos.splice(selectedIdx, 0, data);
+		this.setState({
+			todos: [ ...todos ],
+			selectedIdx: this.state.selectedIdx,
+			adding: false,
+			editing: false
 		});
 	}
 
@@ -97,121 +93,77 @@ class App extends Component {
 			todos: [ ...this.state.todos ],
 			selectedIdx: this.state.selectedIdx,
 			adding: false,
-			form: {
-				title: '',
-				description: ''
-			}
+			editing: false
 		});
 	}
 
-	onDescriptionChange(e) {
-		console.log('DESCRIPTION CHANGE', e.target.value);
+	EditTodoCancel(e) {
+		console.log('CANCEL');
 		this.setState({
 			todos: [ ...this.state.todos ],
 			selectedIdx: this.state.selectedIdx,
-			adding: this.state.adding,
-			form: {
-				title: this.state.form.title,
-				description: e.target.value
-			}
+			adding: false,
+			editing: false
 		});
 	}
 
-	onTitleChange(e) {
-		console.log('TITLE CHANGE', e.target.value);
+	deleteNote(event, noteId) {
+		console.log('DELETING NOTE ', noteId);
+		this.setState({
+			todos: this.state.todos.filter((todo) => todo.id !== noteId),
+			selectedIdx: this.state.selectedIdx,
+			adding: this.state.adding,
+			editing: false
+		});
+	}
+
+	toggleDone(i) {
+		console.log(this.state.todos);
+		const selectedIdx = this.state.todos.findIndex((elem) => elem.id === i);
+		let todos = this.state.todos.filter((todo) => todo.id !== i); // prendo quelli con ID diverso
+
+		let todo = this.state.todos[selectedIdx]; //recupero l'elemento da aggiornare
+		todo.done = !todo.done;
+		todos.splice(selectedIdx, 0, todo);
+		console.log('after', todos);
+
+		this.setState({
+			todos: [ ...todos ],
+			selectedIdx: this.state.selectedIdx,
+			adding: this.state.adding,
+			editing: this.state.editing
+		});
+	}
+
+	editNote() {
 		this.setState({
 			todos: [ ...this.state.todos ],
 			selectedIdx: this.state.selectedIdx,
-			adding: this.state.adding,
-			form: {
-				title: e.target.value,
-				description: this.state.form.description
-			}
-		});
-	}
-
-	deleteNote(event, i) {
-		console.log('DELETING NOTE ', i);
-		this.setState({
-			todos: this.state.todos.filter((todo, idx) => idx !== i),
-			selectedIdx: this.state.selectedIdx,
-			adding: this.state.adding,
-			form: {
-				title: this.state.form.title,
-				description: this.state.form.description
-			}
+			adding: false,
+			editing: true
 		});
 	}
 
 	render() {
 		const { classes } = this.props;
-		const { todos, selectedIdx, adding } = this.state;
+		const { todos, selectedIdx, adding, editing } = this.state;
 
-		const renderedTodos = todos.map((todo, i) => (
-			<ListItem key={i} button onClick={(event) => this.todoListItemOnClick(event, i)}>
-				<ListItemText primary={todo.title} />
-				<ListItemSecondaryAction>
-					<IconButton aria-label="Delete" onClick={(event) => this.deleteNote(event, i)}>
-						<DeleteIcon />
-					</IconButton>
-				</ListItemSecondaryAction>
-			</ListItem>
-		));
+		const selectedTodo = todos[todos.findIndex((elem) => elem.id === selectedIdx)] || undefined;
+		console.log('TODOS=', todos);
+		console.log('SELECTED = ', selectedTodo);
+		let editForm;
 
-		let selectedTodoDetails = '';
-
-		if (selectedIdx >= 0) {
-			const selectedTodo = todos[selectedIdx];
-			selectedTodoDetails = (
-				<Fragment>
-					<Typography variant="h4">{selectedTodo.title}</Typography>
-					<Divider />
-					<Typography variant="body1" component="p" className={classes.detailsDescription}>
-						{selectedTodo.description}
-					</Typography>
-				</Fragment>
-			);
-		} else {
-			selectedTodoDetails = (
-				<Typography variant="body1" component="p">
-					Seleziona un elemento dalla lista per vederne i dettagli
-				</Typography>
-			);
-		}
-
-		let addTodoUI = '';
-
-		if (adding === true) {
-			//mostra il form
-			addTodoUI = (
-				<form>
-					<TextField
-						onChange={(event) => this.onTitleChange(event)}
-						label="Title"
-						className={classes.textfield}
-					/>
-					<TextField
-						onChange={(event) => this.onDescriptionChange(event)}
-						label="Description"
-						multiline
-						className={classes.textfield}
-					/>
-					<Button color="secondary" onClick={(e) => this.newTodoSave(e)}>
-						Salva <SaveIcon />
-					</Button>
-					<Button color="default" onClick={(e) => this.newTodoCancel(e)}>
-						Cancel
-					</Button>
-				</form>
-			);
-		} else {
-			addTodoUI = (
-				<Button color="secondary" onClick={(e) => this.newTodoOnClick(e)}>
-					Nuova cosa da fare
-				</Button>
-			);
-		}
-
+		editForm = editing ? (
+			<EditTodoForm
+				idx={selectedIdx}
+				selectedTodo={selectedTodo}
+				editing={editing}
+				onCancel={(e) => this.EditTodoCancel(e)}
+				onUpdate={(e, data) => this.TodoUpdate(e, data)}
+			/>
+		) : (
+			''
+		);
 		return (
 			<div className={classes.root}>
 				<AppBar position="static" color="default">
@@ -224,14 +176,41 @@ class App extends Component {
 				<Grid container spacing={8} className={classes.grid}>
 					<Grid item xs={4}>
 						<Paper>
-							<Typography variant="h4">Elenco Di cose da fare</Typography>
+							<Typography variant="h4"> Elenco Di cose da fare </Typography> <Divider />
+							<AddTodoForm
+								adding={adding}
+								onCancel={(e) => this.newTodoCancel(e)}
+								onOpen={(e) => this.newTodoOnClick(e)}
+								onSave={(e, data) => this.newTodoSave(e, data)}
+							/>
+							<TodoList
+								todos={todos}
+								todoListItemOnClick={(e, i) => this.todoListItemOnClick(e, i)}
+								onDeleteNote={(e, i) => this.deleteNote(e, i)}
+								done={false}
+							/>
 							<Divider />
-							{addTodoUI}
-							<List>{renderedTodos}</List>
+							<Typography variant="h6" color="inherit">
+								Todo Already done
+							</Typography>
+							<TodoList
+								todos={todos}
+								todoListItemOnClick={(e, i) => this.todoListItemOnClick(e, i)}
+								onDeleteNote={(e, i) => this.deleteNote(e, i)}
+								done={true}
+							/>
 						</Paper>
 					</Grid>
 					<Grid item xs={8}>
-						<Paper>{selectedTodoDetails}</Paper>
+						<Paper>
+							<TodoDetails
+								idx={selectedIdx}
+								selectedTodo={selectedTodo}
+								toggleDone={(i) => this.toggleDone(i)}
+								editTodo={(e) => this.editNote()}
+							/>
+						</Paper>
+						{editForm}
 					</Grid>
 				</Grid>
 			</div>
